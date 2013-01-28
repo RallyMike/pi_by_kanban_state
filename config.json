@@ -1,0 +1,12 @@
+{
+    "name": "build",
+    "className": "CustomApp",
+    "server": "rally1.rallydev.com",
+    "sdk": "2.0p5",
+    "javascript": [
+        "App.js"
+    ],
+    "css": [
+        "app.css"
+    ]
+}
