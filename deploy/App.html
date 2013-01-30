@@ -28,6 +28,12 @@ Ext.define('CustomApp', {
             padding:'15 15 15 15' // top ? bottom left,
         },
         {
+            // panel where we will place the grid for the PI's leaf stories by "kanban" state
+            xtype:'panel',
+            itemId:'piByStateGridContainer',
+            layout:'fit'
+        },
+        {
             // panel where we will place the grid for the PI's leaf stories
             xtype:'panel',
             itemId:'piLeafStoryGridContainer',
@@ -37,6 +43,11 @@ Ext.define('CustomApp', {
 
 
     // --- App global variables ---
+
+    //gKanbanStateFieldName: "MikeBan",
+    gKanbanStateFieldName: "KanbanState",
+
+    gStoryStateMetaDataArray: [], // array to hold the PI's leaf story meta data per state
 
     // --- end global variables ---
 
@@ -53,7 +64,7 @@ Ext.define('CustomApp', {
             height:500,
             listeners:{
                 artifactChosen:function (selectedRecord) {
-                    this._getLeafStoriesInPi(selectedRecord);
+                    this._getPiInfo(selectedRecord);
                 },
                 scope:this
             }
@@ -83,17 +94,37 @@ Ext.define('CustomApp', {
         });
         piHeaderContainer.add(piTextBox);
 
+        // add PI actual start date text box (nulled) to header
+        var piActualStartDateTextBox = Ext.create('Ext.container.Container', {
+            itemId:"piActualStartDateTextBox",
+            html:""
+        });
+        piHeaderContainer.add(piActualStartDateTextBox);
+
+        // add PI planned end date text box (nulled) to header
+        var piPlannedEndDateTextBox = Ext.create('Ext.container.Container', {
+            itemId:"piPlannedEndDateTextBox",
+            html:""
+        });
+        piHeaderContainer.add(piPlannedEndDateTextBox);
+
     }, // end launch
 
 
     // reset the page's controls
     _reset:function () {
+
+        // reset all containers
         this.down('#piLeafStoryGridContainer').removeAll();
+        this.down('#piByStateGridContainer').removeAll();
+
+        // reset all global arrays
+        gStoryStateMetaDataArray = [];
+
     },
 
 
-    // after PI selected, query for all its leaf level stories
-    _getLeafStoriesInPi:function (selectedRecord) {
+    _getPiInfo:function (selectedRecord) {
 
         var piFormattedID = selectedRecord.get('FormattedID');
         var piObjectID = selectedRecord.get('ObjectID');
@@ -102,10 +133,81 @@ Ext.define('CustomApp', {
         this._reset();
 
 
-        var piTextBox = this.down('#piTextBox');
-        //piHeaderContainer.removeAll(true);
+        console.log("piObjectID: " + piObjectID);
 
+        var store = Ext.create('Rally.data.WsapiDataStore', {
+            model: 'PortfolioItem',
+            fetch: ["ObjectID", "Name", "ActualStartDate", "PlannedEndDate"],
+            // scope globally
+            context: {
+                project:null
+            },
+            filters: [
+                {
+                    property: 'ObjectID',
+                    operator: '=',
+                    value: piObjectID
+                }
+            ],
+            limit: Infinity,
+            autoLoad: true,
+            listeners: {
+                load:function (store, data, success) {
+                    // map release OIDs to release NAMES
+                    this._getLeafStoriesInPi(selectedRecord, store, data);
+
+                },
+                scope:this
+            }
+        });
+
+    }, // end _getPiInfo
+
+
+    // after PI selected, query for all its leaf level stories
+    _getLeafStoriesInPi:function (selectedRecord, theStore, thePiRecords) {
+
+        console.log("*** selectedRecord ***");
+        console.log(selectedRecord);
+
+        var piFormattedID = selectedRecord.get('FormattedID');
+        var piObjectID = selectedRecord.get('ObjectID');
+        var piName = selectedRecord.get("Name");
+
+
+
+        var nbrPiRecords;
+
+        nbrPiRecords = thePiRecords.length;
+        console.log("nbrPiRecords: " + nbrPiRecords);
+
+        // we should only get a single record back for the PI we query for
+        if (nbrPiRecords !== 1) {
+            alert("Error: Multiple Portfolio Items Fetched for this Object ID");
+            return;
+        }
+
+        var piActualStartDate = thePiRecords[0].get("ActualStartDate");
+        var piPlannedEndDate = thePiRecords[0].get("PlannedEndDate");
+
+        console.log("piActualStartDate  : " + piActualStartDate);
+        console.log("piPlannedEndDate   : " + piPlannedEndDate);
+
+
+
+
+
+
+
+
+        var piTextBox = this.down('#piTextBox');
         piTextBox.update('<font size="5"><br><b>Portfolio Item: </b>' + piFormattedID + " - " + piName + "</font>");
+
+        var piActualStartDateTextBox = this.down('#piActualStartDateTextBox');
+        piActualStartDateTextBox.update('<font size="4"><br><b>Actual Start Date: </b>' + piActualStartDate + "</font>");
+
+        var piPlannedEndDateTextBox = this.down('#piPlannedEndDateTextBox');
+        piPlannedEndDateTextBox.update('<font size="4"><br><b>Planned End Date: </b>' + piPlannedEndDate + "</font>");
 
 
         var query = {
@@ -116,7 +218,8 @@ Ext.define('CustomApp', {
         };
 
         // set query config info
-        var find = ["ObjectID", "_UnformattedID", "Name", "Release", "ScheduleState", "PlanEstimate"];
+        // MIKE - fetch KanbanState --- NOTE: using MikeBan for testing/debugging purposes
+        var find = ["ObjectID", "_UnformattedID", "Name", "Release", "ScheduleState", "PlanEstimate", "c_" + this.gKanbanStateFieldName];
         var queryString = Ext.JSON.encode(query);
 
         // set context to global across the workspace
@@ -132,7 +235,7 @@ Ext.define('CustomApp', {
             pageSize:10000000,
             fetch:find,
             rawFind:query,
-            hydrate:["ScheduleState"],
+            hydrate:["ScheduleState", "c_" + this.gKanbanStateFieldName],
             autoLoad:true,
             listeners:{
                 scope:this,
@@ -179,6 +282,10 @@ Ext.define('CustomApp', {
                 {
                     text:'ScheduleState',
                     dataIndex:'ScheduleState'
+                },
+                {
+                    text:this.gKanbanStateFieldName,
+                    dataIndex:'c_' + this.gKanbanStateFieldName
                 }
             ]//,
             //height:400
@@ -189,9 +296,178 @@ Ext.define('CustomApp', {
         gridHolder.removeAll(true);
         gridHolder.add(snapshotGrid);
 
-    } // end _processPiLeafStories
 
-});
+        // time to start processing the PI's leaf stories by their "kanban" state
+        this._processPiStoriesByState(records);
+
+        //this._logStoryStateMetaDataArray(this.gStoryStateMetaDataArray);
+
+        this._chartPiByState(this.gStoryStateMetaDataArray);
+
+    }, // end _processPiLeafStories
+
+
+    _processPiStoriesByState:function (theStoryRecords) {
+
+        var storyRecord;
+        var storyState;
+
+        var nbrStories = theStoryRecords.length;
+
+        var storyNdx;
+
+        var storyStateMetaData;
+
+
+        // loop through each of the PI's stories
+        for (storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
+            storyRecord = theStoryRecords[storyNdx];
+
+            if (storyRecord !== null) {
+
+                // localize this story's state
+                storyState = storyRecord.get("c_" + this.gKanbanStateFieldName);
+                if (storyState === null || storyState === ""){
+                    storyState = "No Entry";
+                }
+
+                console.log("Name: " + storyRecord.get("Name"));
+                console.log(this.gKanbanStateFieldName + ": " + storyState);
+
+
+                storyStateMetaData = null;
+                storyStateMetaData = this._findStoryStateMetaDataEntry( this.gStoryStateMetaDataArray, storyState);
+
+                if (storyStateMetaData === null) {
+
+                    console.log("Story State NOT FOUND");
+
+                    // populate initial entry for this state
+                    storyStateMetaData = new Object();
+
+                    if (storyState !== null && storyState !== ""){
+                        storyStateMetaData.itsName = storyState;
+                    }
+                    else {
+                        storyStateMetaData.itsName = "No Entry";
+                    }
+
+
+                    storyStateMetaData.itsStoryCount = 0;
+                    storyStateMetaData.itsStoryPlanEstimate = 0;
+
+                    console.log("Pushing State onto Array: " + storyStateMetaData.itsName);
+                    this.gStoryStateMetaDataArray.push(storyStateMetaData);
+
+                }
+
+                storyStateMetaData.itsStoryCount += 1;
+                storyStateMetaData.itsStoryPlanEstimate += storyRecord.get("PlanEstimate") || 0;
+
+            } // end story record is not null
+
+        } // end loop for all story records
+
+    }, // end _processPiStoriesByState
+
+
+    // chart out the PI's bucketed by kanban state
+    _chartPiByState:function (theStoryStateMetaDataArray) {
+
+        // define a custom  model
+        var aModel = Ext.define('CustomStateModel', {
+            extend: 'Ext.data.Model',
+            fields: [
+                {name:'itsName', type:'string'},
+                {name:'itsStoryCount', type:'int'},
+                {name:'itsStoryPlanEstimate', type:'int'}
+            ]
+        });
+
+
+        // populate a store built around the custom  model
+        var aStore = Ext.create('Ext.data.Store', {
+            storeId: 'piByStateStore',
+            model: aModel,
+            data: theStoryStateMetaDataArray
+        });
+
+
+        // define a rally grid to output the store's data in
+        var aGrid = Ext.create('Rally.ui.grid.Grid', {
+            itemId: 'piByStateGrid',
+            store: aStore,
+            width: 470,
+            columnCfgs: [
+                {
+                    text:'State Name', dataIndex:'itsName', flex:2
+                },
+                {
+                    text:'Story Count Total', dataIndex:'itsStoryCount', width:80
+                },
+                {
+                    text:'Plan Estimate Total', dataIndex:'itsStoryPlanEstimate', width:80
+                }
+            ] // end columnCfgs
+        });
+
+
+        // render the PI by State grid
+        var aPiByStateGridContainer = this.down('#piByStateGridContainer');
+        aPiByStateGridContainer.removeAll(true);
+        aPiByStateGridContainer.add(aGrid);
+
+    }, // end _chartPiByState
+
+
+    _findStoryStateMetaDataEntry:function (theStoryStateMetaDataArray, theStoryState) {
+
+        // check if array is empty
+        if (theStoryStateMetaDataArray === null)
+            return null;
+
+
+        var len = theStoryStateMetaDataArray.length;
+        //console.log("len: " + len);
+
+        for (var x = 0; x < len; x++) {
+            var anEntry = theStoryStateMetaDataArray[x];
+
+            //console.log("theStoryState      : " + theStoryState);
+            //console.log("anEntry.itsName    : " + anEntry.itsName);
+
+            if (anEntry.itsName === theStoryState) {
+                return anEntry
+            }
+        }
+
+        return null;
+
+    }, // end _findStoryStateMetaDataEntry
+
+    _logStoryStateMetaDataArray:function (theStoryStateMetaDataArray) {
+
+        console.log("----- _logStoryStateMetaDataArray() -----");
+
+        var len = theStoryStateMetaDataArray.length;
+        console.log("len: " + len);
+
+        for (var x = 0; x < len; x++) {
+
+            var anEntry = theStoryStateMetaDataArray[x];
+
+            if (anEntry !== null) {
+                console.log("itsName: " + anEntry.itsName);
+                console.log("itsStoryCount: " + anEntry.itsStoryCount);
+                console.log("itsStoryPlanEstimate: " + anEntry.itsStoryPlanEstimate);
+            }
+
+        } // end loop through all entries in the story state meta data array
+
+    } // end _logStoryStateMetaDataArray
+
+}); // end of Ext.define
+
 
 
             Rally.launchApp('CustomApp', {
