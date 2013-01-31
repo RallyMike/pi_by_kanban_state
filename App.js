@@ -32,8 +32,8 @@ Ext.define('CustomApp', {
 
     // --- App global variables ---
 
-    gKanbanStateFieldName: "MikeBan",
-    //gKanbanStateFieldName: "KanbanState",
+    //gKanbanStateFieldName: "MikeBan",
+    gKanbanStateFieldName: "KanbanState",
 
     gStateMetaDataArray: [], // array to hold the PI's leaf story meta data per state
 
@@ -76,8 +76,13 @@ Ext.define('CustomApp', {
         this.down('#piLeafStoryGridContainer').removeAll();
         this.down('#piByStateGridContainer').removeAll();
 
-        // reset all global arrays
-        gStateMetaDataArray = [];
+        // reset the global array of state meta data
+        var len = this.gStateMetaDataArray.length
+        for (var x = 0; x < len; x++){
+            var aState = this.gStateMetaDataArray[x];
+            aState.itsStoryCount = 0;
+            aState.itsStoryPlanEstimate = 0;
+        }
 
     },
 
@@ -117,7 +122,7 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     _populateStates:function (theStoryModel){
 
-        console.log("Enter _populateStates");
+//        console.log("Enter _populateStates");
 
         //console.log("theStoryModel");
         //console.log(theStoryModel);
@@ -125,9 +130,9 @@ Ext.define('CustomApp', {
         //var stateField = theStoryModel.getField(this.gKanbanStateFieldName);
         var stateField = theStoryModel.getField('KanbanState');
 
-        console.log("stateField");
-        console.log(stateField);
-        console.log("-----------------");
+//        console.log("stateField");
+//        console.log(stateField);
+//        console.log("-----------------");
 
         nbrAllowedValues = stateField.allowedValues.length;
         console.log("nbrAllowedValues: " + nbrAllowedValues);
@@ -155,7 +160,7 @@ Ext.define('CustomApp', {
         this._addFormControls();
 
 
-        console.log("Exit _populateStates");
+        //console.log("Exit _populateStates");
     },
 
 
@@ -414,7 +419,7 @@ Ext.define('CustomApp', {
                 //    storyState = "No Entry";
                 //}
 
-                console.log("Name: " + storyRecord.get("Name"));
+                console.log("Story Name: " + storyRecord.get("Name"));
                 console.log(this.gKanbanStateFieldName + ": " + storyState);
 
 
@@ -423,7 +428,7 @@ Ext.define('CustomApp', {
 
                 if (storyStateMetaData === null) {
 
-                    console.log("Story State NOT FOUND");
+                    console.log("*** Story State NOT FOUND --- Now that we pre-populate the states, THIS SHOULD NO LONGER HAPPEN ***");
 
                     // populate initial entry for this state
                     storyStateMetaData = new Object();
@@ -517,8 +522,8 @@ Ext.define('CustomApp', {
         for (var x = 0; x < len; x++) {
             var anEntry = theStoryStateMetaDataArray[x];
 
-            console.log("theStoryState      : " + theStoryState);
-            console.log("anEntry.itsName    : " + anEntry.itsName);
+            //console.log("theStoryState      : " + theStoryState);
+            //console.log("anEntry.itsName    : " + anEntry.itsName);
 
             if (anEntry.itsName === theStoryState) {
                 return anEntry
