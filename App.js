@@ -76,6 +76,14 @@ Ext.define('CustomApp', {
         this.down('#piLeafStoryGridContainer').removeAll();
         this.down('#piByStateGridContainer').removeAll();
 
+        this._resetStateMetaDataArray();
+
+    }, // end _reset
+
+
+    // reset state meta data array
+    _resetStateMetaDataArray:function () {
+
         // reset the global array of state meta data
         var len = this.gStateMetaDataArray.length
         for (var x = 0; x < len; x++){
@@ -84,7 +92,7 @@ Ext.define('CustomApp', {
             aState.itsStoryPlanEstimate = 0;
         }
 
-    },
+    }, // end _resetStateMetaDataArray
 
 
     // retrieve the story model from WSAPI so we can determine what STATES are allowed
@@ -308,18 +316,18 @@ Ext.define('CustomApp', {
 
         // fetch the snapshot of all leaf level stories for the PI
         var ssPiLeafStories = Ext.create('Rally.data.lookback.SnapshotStore', {
-            context:{
+            context: {
                 workspace: this.context.getWorkspace(),
                 project: this.context.getProject()
             },
-            pageSize:10000000,
-            fetch:find,
-            rawFind:query,
-            hydrate:["ScheduleState", "c_" + this.gKanbanStateFieldName],
-            autoLoad:true,
-            listeners:{
-                scope:this,
-                load:this._processPiLeafStories
+            pageSize: 10000000,
+            fetch: find,
+            rawFind: query,
+            hydrate: ["ScheduleState", "c_" + this.gKanbanStateFieldName],
+            autoLoad: true,
+            listeners: {
+                scope: this,
+                load: this._processPiLeafStories
             }
         });
 
@@ -336,9 +344,9 @@ Ext.define('CustomApp', {
 
         // spit out all leaf stories into a grid
         var snapshotGrid = Ext.create('Rally.ui.grid.Grid', {
-            title:'Snapshots',
-            store:store,
-            columnCfgs:[
+            title: 'Snapshots',
+            store: store,
+            columnCfgs: [
                 {
                     text:'ObjectID',
                     dataIndex:'ObjectID'
@@ -405,6 +413,10 @@ Ext.define('CustomApp', {
         var storyNdx;
 
         var storyStateMetaData;
+
+
+        // clear any prior state meta data
+        this._resetStateMetaDataArray();
 
 
         // loop through each of the PI's stories
