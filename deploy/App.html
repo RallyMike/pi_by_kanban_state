@@ -407,7 +407,7 @@ Ext.define('CustomApp', {
 
 
         // time to start processing the PI's leaf stories by their "kanban" state
-        this._processPiStoriesByState(records);
+        this._processAllPiStoriesByState(records);
 
         //this._logStateMetaDataArray(this.gStateMetaDataArray);
 
@@ -417,73 +417,31 @@ Ext.define('CustomApp', {
 
 
     // ----------------------------------------------------
-    // organize the PI's leaf stories by STATE
+    // process all PI's leaf stories by STATE
     // ----------------------------------------------------
-    _processPiStoriesByState:function (theStoryRecords) {
-
-        var storyRecord;
-        var storyState;
-
-        var nbrStories = theStoryRecords.length;
-
-        var storyNdx;
-
-        var storyStateMetaData;
-
+    _processAllPiStoriesByState:function (theStoryRecords) {
 
         // clear any prior state meta data
         this._resetStateMetaDataArray();
 
+        var nbrStories = theStoryRecords.length;
 
         // loop through each of the PI's stories
-        for (storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
-            storyRecord = theStoryRecords[storyNdx];
+        for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
 
-            if (storyRecord !== null) {
+            var aStoryRecord = theStoryRecords[storyNdx];
 
-                // localize this story's state
-                storyState = storyRecord.get("c_" + this.gKanbanStateFieldName);
-                //if (storyState === null || storyState === ""){
-                //    storyState = "No Entry";
-                //}
+            if (aStoryRecord !== null) {
 
-                console.log("Story Name: " + storyRecord.get("Name"));
-                console.log(this.gKanbanStateFieldName + ": " + storyState);
+                console.log("Story Name: " + aStoryRecord.get("Name"));
 
+                // process this PI leaf story
+                var rc = this._processPiStoryByState( this.gStateMetaDataArray, aStoryRecord);
 
-
-                
-                storyStateMetaData = null;
-                storyStateMetaData = this._findStoryStateMetaDataEntry( this.gStateMetaDataArray, storyState);
-
-                if (storyStateMetaData === null) {
-
-                    console.log("*** Story State NOT FOUND --- Now that we pre-populate the states, THIS SHOULD NO LONGER HAPPEN ***");
-
-                    // populate initial entry for this state
-                    storyStateMetaData = new Object();
-
-                    if (storyState !== null && storyState !== ""){
-                        storyStateMetaData.itsName = storyState;
-                    }
-                    else {
-                        //storyStateMetaData.itsName = "No Entry";
-                        storyStateMetaData.itsName = storyState;
-                    }
-
-
-                    storyStateMetaData.itsStoryCount = 0;
-                    storyStateMetaData.itsStoryPlanEstimate = 0;
-                    storyStateMetaData.itsAggregateStoryCount = 0;
-                    storyStateMetaData.itsAggregateStoryPlanEstimate = 0;
-
-                    console.log("Pushing State onto Array: " + storyStateMetaData.itsName);
-                    this.gStateMetaDataArray.push(storyStateMetaData);
-
+                if (rc !== 0 ) {
+                    console.log("*** Error updating the story state meta data array ***");
+                    return rc;
                 }
-
-                storyStateMetaData.itsStoryCount += 1;
-                storyStateMetaData.itsStoryPlanEstimate += storyRecord.get("PlanEstimate") || 0;
 
             } // end story record is not null
 
@@ -501,12 +459,13 @@ Ext.define('CustomApp', {
             fields: [
                 {name:'itsName', type:'string'},
                 {name:'itsStoryCount', type:'int'},
-                {name:'itsStoryPlanEstimate', type:'int'}
-            ]
+                {name:'itsStoryPlanEstimate', type:'int'},
+                {name:'itsAggregateStoryCount', type:'int'},
+                {name:'itsAggregateStoryPlanEstimate', type:'int'}            ]
         });
 
 
-        // populate a store built around the custom  model
+        // populate a store built around the custom model
         var aStore = Ext.create('Ext.data.Store', {
             storeId: 'piByStateStore',
             model: aModel,
@@ -521,13 +480,19 @@ Ext.define('CustomApp', {
             width: 470,
             columnCfgs: [
                 {
-                    text:'State Name', dataIndex:'itsName', flex:2
+                    text:'State Name', dataIndex:'itsName', flex:3
                 },
                 {
-                    text:'Story Count Total', dataIndex:'itsStoryCount', width:80
+                    text:'Story Count Total', dataIndex:'itsStoryCount', flex:1
                 },
                 {
-                    text:'Plan Estimate Total', dataIndex:'itsStoryPlanEstimate', width:80
+                    text:'Plan Estimate Total', dataIndex:'itsStoryPlanEstimate', flex:1
+                },
+                {
+                    text:'Aggregate Story Count Total', dataIndex:'itsAggregateStoryCount', flex:1
+                },
+                {
+                    text:'Aggregate Plan Estimate Total', dataIndex:'itsAggregateStoryPlanEstimate', flex:1
                 }
             ] // end columnCfgs
         });
@@ -541,30 +506,49 @@ Ext.define('CustomApp', {
     }, // end _chartPiByState
 
 
-    _findStoryStateMetaDataEntry:function (theStoryStateMetaDataArray, theStoryState) {
+    // ----------------------------------------------------
+    // Process the supplied leaf story.  Its meta data
+    // will be added to the appropriate story states.
+    // ----------------------------------------------------
+    _processPiStoryByState:function (theStoryStateMetaDataArray, theStoryRecord) {
 
         // check if array is empty
         if (theStoryStateMetaDataArray === null)
-            return null;
+            return 1001;
 
+        // grab the story's state from the story record
+        var aStoryState = theStoryRecord.get("c_" + this.gKanbanStateFieldName);
 
         var len = theStoryStateMetaDataArray.length;
-        //console.log("len: " + len);
 
+        // loop through each story meta data state
         for (var x = 0; x < len; x++) {
-            var anEntry = theStoryStateMetaDataArray[x];
+            var aStateMetaDataEntry = theStoryStateMetaDataArray[x];
 
-            //console.log("theStoryState      : " + theStoryState);
-            //console.log("anEntry.itsName    : " + anEntry.itsName);
+            if (aStateMetaDataEntry === null)
+                return 1002;
 
-            if (anEntry.itsName === theStoryState) {
-                return anEntry
+            //console.log("aStoryState                    : " + aStoryState);
+            //console.log("aStateMetaDataEntry.itsName    : " + aStateMetaDataEntry.itsName);
+
+            // the supplied story is either in this state or beyond it
+            aStateMetaDataEntry.itsAggregateStoryCount += 1;
+            aStateMetaDataEntry.itsAggregateStoryPlanEstimate += theStoryRecord.get("PlanEstimate") || 0;
+
+            // check if the supplied story is in this state
+            if (aStateMetaDataEntry.itsName === aStoryState) {
+                aStateMetaDataEntry.itsStoryCount += 1;
+                aStateMetaDataEntry.itsStoryPlanEstimate += theStoryRecord.get("PlanEstimate") || 0;
+                return 0;
             }
-        }
 
-        return null;
+        } // end loop through each story meta data state
 
-    }, // end _findStoryStateMetaDataEntry
+        // state not found --- why did this happen?
+        return 1003;
+
+    }, // end _processPiStoryByState
+
 
     _logStateMetaDataArray:function (theStoryStateMetaDataArray) {
 
@@ -581,7 +565,8 @@ Ext.define('CustomApp', {
                 console.log("itsName: " + anEntry.itsName);
                 console.log("itsStoryCount: " + anEntry.itsStoryCount);
                 console.log("itsStoryPlanEstimate: " + anEntry.itsStoryPlanEstimate);
-            }
+                console.log("itsAggregateStoryPlanEstimate: " + anEntry.itsAggregateStoryCount);
+                console.log("itsAggregateStoryPlanEstimate: " + anEntry.itsAggregateStoryPlanEstimate);            }
 
         } // end loop through all entries in the story state meta data array
 

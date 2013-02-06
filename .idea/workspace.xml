@@ -24,19 +24,10 @@
   <component name="ExecutionTargetManager" SELECTED_TARGET="default_target" />
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="App.js" pinned="false" current="false" current-in-tab="false">
+      <file leaf-file-name="App.js" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/App.js">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="418" column="13" selection-start="13261" selection-end="13261" vertical-scroll-proportion="0.0">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="App.html" pinned="false" current="true" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/deploy/App.html">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="454" column="16" selection-start="14371" selection-end="14371" vertical-scroll-proportion="0.46646795">
+            <state line="479" column="80" selection-start="15640" selection-end="15640" vertical-scroll-proportion="0.8252427">
               <folding />
             </state>
           </provider>
@@ -55,8 +46,8 @@
   <component name="IdeDocumentHistory">
     <option name="changedFiles">
       <list>
-        <option value="$PROJECT_DIR$/App.js" />
         <option value="$PROJECT_DIR$/deploy/App.html" />
+        <option value="$PROJECT_DIR$/App.js" />
       </list>
     </option>
   </component>
@@ -253,16 +244,16 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/App.js">
+    <entry file="file://$PROJECT_DIR$/deploy/App.html">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="418" column="13" selection-start="13261" selection-end="13261" vertical-scroll-proportion="0.0">
+        <state line="314" column="29" selection-start="9745" selection-end="9745" vertical-scroll-proportion="-5.375">
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/deploy/App.html">
+    <entry file="file://$PROJECT_DIR$/App.js">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="454" column="16" selection-start="14371" selection-end="14371" vertical-scroll-proportion="0.46646795">
+        <state line="479" column="80" selection-start="15640" selection-end="15640" vertical-scroll-proportion="0.8252427">
           <folding />
         </state>
       </provider>
