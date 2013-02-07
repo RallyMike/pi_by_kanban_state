@@ -421,13 +421,14 @@ Ext.define('CustomApp', {
 
             if (aStoryRecord !== null) {
 
-                console.log("Story Name: " + aStoryRecord.get("Name"));
+                //console.log("Story Name: " + aStoryRecord.get("Name"));
 
                 // process this PI leaf story
                 var rc = this._processPiStoryByState( this.gStateMetaDataArray, aStoryRecord);
 
                 if (rc !== 0 ) {
                     console.log("*** Error updating the story state meta data array ***");
+                    console.log("rc: " + rc);
                     return rc;
                 }
 
@@ -500,12 +501,15 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     _processPiStoryByState:function (theStoryStateMetaDataArray, theStoryRecord) {
 
+        //console.log("***  Enter _processPiStoryByState ***");
+
         // check if array is empty
         if (theStoryStateMetaDataArray === null)
             return 1001;
 
         // grab the story's state from the story record
         var aStoryState = theStoryRecord.get("c_" + this.gKanbanStateFieldName);
+        //console.log("aStoryState: " + aStoryState);
 
         var len = theStoryStateMetaDataArray.length;
 
@@ -516,7 +520,6 @@ Ext.define('CustomApp', {
             if (aStateMetaDataEntry === null)
                 return 1002;
 
-            //console.log("aStoryState                    : " + aStoryState);
             //console.log("aStateMetaDataEntry.itsName    : " + aStateMetaDataEntry.itsName);
 
             // the supplied story is either in this state or beyond it
@@ -532,8 +535,23 @@ Ext.define('CustomApp', {
 
         } // end loop through each story meta data state
 
-        // state not found --- why did this happen?
-        return 1003;
+        // state not found --- we encountered a state no longer used
+
+        // populate initial entry for this "old" state.  Although the state may no longer
+        // be valid, there could be story's still referencing it that have yet to be updated.
+        var anOldState = new Object();
+        anOldState.itsName = aStoryState;
+        anOldState.itsStoryCount = 1;
+        anOldState.itsStoryPlanEstimate = theStoryRecord.get("PlanEstimate") || 0;
+        anOldState.itsAggregateStoryCount = 1;
+        anOldState.itsAggregateStoryPlanEstimate = theStoryRecord.get("PlanEstimate") || 0;
+
+        // add it to the state array
+        theStoryStateMetaDataArray.push(anOldState);
+
+        console.log("WARNING: Accounting for an invalid STATE: " + aStoryState);
+
+        return 0;
 
     }, // end _processPiStoryByState
 
