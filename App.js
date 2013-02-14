@@ -16,7 +16,7 @@ Ext.define('CustomApp', {
             padding:'15 15 15 15' // top ? bottom left,
         },
         {
-            // panel where we will place the grid for the PI's leaf stories by "kanban" state
+            // panel where we will place the grid for the PI's leaf stories by state
             xtype:'panel',
             itemId:'piByStateGridContainer',
             layout:'fit'
@@ -32,15 +32,19 @@ Ext.define('CustomApp', {
 
     // --- App global variables ---
 
-    //gKanbanStateFieldName: "MikeBan",
-    gKanbanStateFieldName: "KanbanState",
+    gKanbanStateFieldName: "MikeBan",
+    //gKanbanStateFieldName: "KanbanState",
 
     gStateMetaDataArray: [], // array to hold the PI's leaf story meta data per state
+
+    gPiObjectID: undefined,     // PI object ID to breakdown upon initial load
+    gPiFormattedID: undefined,  // PI formatted ID
+    gPiName: undefined,         // PI name
 
     // --- end global variables ---
 
 
-    fireChooser:function () {
+    _fireChooser:function () {
 
         // Chooser to select PI to retrieve the leaf stories for
 
@@ -52,7 +56,12 @@ Ext.define('CustomApp', {
             height:500,
             listeners:{
                 artifactChosen:function (selectedRecord) {
-                    this._getPiInfo(selectedRecord);
+
+                    this.gPiFormattedID = selectedRecord.get('FormattedID');
+                    this.gPiObjectID = selectedRecord.get('ObjectID');
+                    this.gPiName = selectedRecord.get("Name");
+
+                    this._getPiInfo();
                 },
                 scope:this
             }
@@ -63,10 +72,73 @@ Ext.define('CustomApp', {
 
         // main function
 
-        // MODEL - we need to determine the order of states via the WSAPI model
+        // process this App's preferences
+        // STUBBING OUT FOR NOW...the LBAPI query is not working
+        // for the initial PI upon App load/refresh
+        //this._processAppPrefs();
+
+
+        // we need to determine the order of states via the WSAPI model
         this._getStoryModel();
 
     }, // end launch
+
+
+    // ----------------------------------------------------
+    // process the App's preferences:
+    //      "piObjectID" - undefined or object ID of PI to use upon App load
+    // ----------------------------------------------------
+
+    _processAppPrefs:function () {
+
+        // log out the App's settings
+        console.log("App's original preference settings");
+        console.log(this.settings);
+
+        // grab PI info to use upon initial load (might be undefined)
+        this.gPiObjectID = this.getSetting("piObjectID");
+        this.gPiFormattedID = this.getSetting("piFormattedID");
+        this.gPiName = this.getSetting("piName");
+
+        console.log("App's preferences retrieved");
+        console.log("this.gPiObjectID: " + this.gPiObjectID);
+        console.log("this.gPiFormattedID: " + this.gPiFormattedID);
+        console.log("this.gPiName: " + this.gPiName);
+
+    }, // end _processAppPrefs()
+
+
+    // ----------------------------------------------------
+    // update the App's preferences:
+    //      "piObjectID" - save the object ID of PI to use upon next App load
+    // ----------------------------------------------------
+
+    _updateAppPrefs:function () {
+
+        console.log(this.settings);
+
+        // capture App's scope to reference upon success
+        var appScope = this;
+
+
+        this.updateSettingsValues({
+            settings: {
+                piObjectID: this.gPiObjectID,
+                piFormattedID: this.gPiFormattedID,
+                piName: this.gPiName
+            },
+            success: function(updatedSettings){
+                console.log("Success: updateSettingsValues() worked!");
+
+                //that._expWithSettings();
+
+            },
+            failure: function(){
+                console.log("Failure: updateSettingsValues() failed!");
+            }
+        });
+
+    }, // end _updateAppPrefs()
 
 
     // reset the page's controls
@@ -97,7 +169,10 @@ Ext.define('CustomApp', {
     }, // end _resetStateMetaDataArray
 
 
-    // retrieve the story model from WSAPI so we can determine what STATES are allowed
+    // ----------------------------------------------------
+    // retrieve the story model from WSAPI so we can determine
+    // what STATES are allowed
+    // ----------------------------------------------------
     _getStoryModel:function (){
 
         console.log("Enter _getStoryModel");
@@ -116,7 +191,21 @@ Ext.define('CustomApp', {
 
             },
             success: function(model) {
+                // populate the state's values
                 appScope._populateStates(model);
+
+                // now add the form's controls to the page (PI name/dates/etc. and the select PI button)
+                appScope._addAppControls();
+
+                // check if a PI is already set in preferences
+                if (appScope.gPiObjectID !== null && appScope.gPiObjectID !== undefined){
+                    console.log("Preferences contain a PI to use upon load");
+
+                    // start w/ PI stored in preferences
+                    appScope._getPiInfo();
+
+                }
+
             },
             failure: function(f,a){
                 Ext.Msg.alert("getModel() failed");
@@ -132,17 +221,7 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     _populateStates:function (theStoryModel){
 
-//        console.log("Enter _populateStates");
-
-        //console.log("theStoryModel");
-        //console.log(theStoryModel);
-
-        //var stateField = theStoryModel.getField(this.gKanbanStateFieldName);
-        var stateField = theStoryModel.getField('KanbanState');
-
-//        console.log("stateField");
-//        console.log(stateField);
-//        console.log("-----------------");
+        var stateField = theStoryModel.getField(this.gKanbanStateFieldName);
 
         nbrAllowedValues = stateField.allowedValues.length;
         console.log("nbrAllowedValues: " + nbrAllowedValues);
@@ -152,7 +231,7 @@ Ext.define('CustomApp', {
 
             // localize the allowed value
             aValue = stateField.allowedValues[ndx].StringValue;
-            console.log("aValue: " + aValue);
+            //console.log("aValue: " + aValue);
 
             // populate initial entry for this state
             var storyStateMetaData = new Object();
@@ -167,19 +246,14 @@ Ext.define('CustomApp', {
 
         } // end loop through all allowed values
 
-
-        // now add the form's controls to the page (PI name/dates/etc. and the select PI button)
-        this._addFormControls();
-
-
         //console.log("Exit _populateStates");
     },
 
 
     // ----------------------------------------------------
-    // add the initial controls to the form (PI fields, choose PI button, etc.)
+    // add the initial controls to the App (PI fields, choose PI button, etc.)
     // ----------------------------------------------------
-    _addFormControls:function (){
+    _addAppControls:function (){
 
         // add "select PI" button to header
         var piHeaderContainer = this.down('#piHeaderContainer');
@@ -187,8 +261,8 @@ Ext.define('CustomApp', {
             xtype:'rallybutton',
             text:'Select Portfolio Item',
             listeners:{
-                click:this.fireChooser,
-                scope:this
+                click: this._fireChooser,
+                scope: this
             }
         });
 
@@ -218,18 +292,15 @@ Ext.define('CustomApp', {
 
 
     // ----------------------------------------------------
-    // the PI chooser button has been fired...now its time to go get the selected PI's data
+    // the PI chooser button has been fired...
+    // now it is time to go get the selected PI's data
     // ----------------------------------------------------
-    _getPiInfo:function (selectedRecord) {
-
-        var piFormattedID = selectedRecord.get('FormattedID');
-        var piObjectID = selectedRecord.get('ObjectID');
-        var piName = selectedRecord.get("Name");
+    _getPiInfo:function () {
 
         this._reset();
 
 
-        console.log("piObjectID: " + piObjectID);
+        console.log("_getPiInfo() - this.gPiObjectID: " + this.gPiObjectID);
 
         var store = Ext.create('Rally.data.WsapiDataStore', {
             model: 'PortfolioItem',
@@ -242,7 +313,7 @@ Ext.define('CustomApp', {
                 {
                     property: 'ObjectID',
                     operator: '=',
-                    value: piObjectID
+                    value: this.gPiObjectID
                 }
             ],
             limit: Infinity,
@@ -251,7 +322,7 @@ Ext.define('CustomApp', {
                 load:function (store, data, success) {
 
                     // map release OIDs to release NAMES
-                    this._getLeafStoriesInPi(selectedRecord, store, data);
+                    this._getLeafStoriesInPi(data);
 
                 },
                 scope:this
@@ -264,15 +335,7 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     // after PI selected, query for all its leaf level stories
     // ----------------------------------------------------
-    _getLeafStoriesInPi:function (selectedRecord, theStore, thePiRecords) {
-
-        console.log("*** selectedRecord ***");
-        console.log(selectedRecord);
-
-        var piFormattedID = selectedRecord.get('FormattedID');
-        var piObjectID = selectedRecord.get('ObjectID');
-        var piName = selectedRecord.get("Name");
-
+    _getLeafStoriesInPi:function (thePiRecords) {
 
         // ----- BEGIN: grab the PI's date fields
         var nbrPiRecords;
@@ -290,33 +353,43 @@ Ext.define('CustomApp', {
         var piPlannedEndDate = thePiRecords[0].get("PlannedEndDate");
 
         var piTextBox = this.down('#piTextBox');
-        piTextBox.update('<font size="5"><br><b>Portfolio Item: </b>' + piFormattedID + " - " + piName + "</font>");
+        piTextBox.update('<font size="4"><br><b>Portfolio Item: </b>' + this.gPiFormattedID + " - " + this.gPiName + "</font>");
 
         var piActualStartDateTextBox = this.down('#piActualStartDateTextBox');
-        piActualStartDateTextBox.update('<font size="4"><br><b>Actual Start Date: </b>' + piActualStartDate + "</font>");
+        piActualStartDateTextBox.update('<font size="3"><br><b>Actual Start Date: </b>' + piActualStartDate + "</font>");
 
         var piPlannedEndDateTextBox = this.down('#piPlannedEndDateTextBox');
-        piPlannedEndDateTextBox.update('<font size="4"><br><b>Planned End Date: </b>' + piPlannedEndDate + "</font>");
+        piPlannedEndDateTextBox.update('<font size="3"><br><b>Planned End Date: </b>' + piPlannedEndDate + "</font>");
 
         // ----- END: grab the PI's date fields
 
 
         // ----- BEGIN: query the LBAPI for all of the PI's leaf stories
+
+        // set query config info
         var query = {
             "__At":"current",
             "_TypeHierarchy":"HierarchicalRequirement",
             "Children":null,
-            "_ItemHierarchy":piObjectID
+            "_ItemHierarchy":this.gPiObjectID
         };
 
-        // set query config info
-        // MIKE - fetch KanbanState --- NOTE: using MikeBan for testing/debugging purposes
-        var find = ["ObjectID", "_UnformattedID", "Name", "Release", "ScheduleState", "PlanEstimate", "c_" + this.gKanbanStateFieldName];
         var queryString = Ext.JSON.encode(query);
+
+        console.log("query: " + query);
+        console.log("queryString: " + queryString);
+
+        // set fields to retrieve
+        var find = ["ObjectID", "_UnformattedID", "Name", "Release", "ScheduleState", "PlanEstimate", "c_" + this.gKanbanStateFieldName];
 
         // set context to global across the workspace
         var context = this.getContext().getDataContext();
+
+        // clear context's project
         context.project = undefined;
+
+        // capture App's scope
+        var appScope = this;
 
         // fetch the snapshot of all leaf level stories for the PI
         var ssPiLeafStories = Ext.create('Rally.data.lookback.SnapshotStore', {
@@ -326,13 +399,29 @@ Ext.define('CustomApp', {
             },
             pageSize: 10000000,
             fetch: find,
+            //rawFind: queryString,
             rawFind: query,
             hydrate: ["ScheduleState", "c_" + this.gKanbanStateFieldName],
             autoLoad: true,
+
+//            listeners: {
+//                scope: this,
+//                load: this._processPiLeafStories
+//            }
+
             listeners: {
-                scope: this,
-                load: this._processPiLeafStories
+                load:function (store, data, success) {
+
+                    // map release OIDs to release NAMES
+                    appScope._processPiLeafStories(store, data);
+
+                },
+                scope: this
             }
+
+
+
+
         });
 
         // ----- END: query the LBAPI for all of the PI's leaf stories
@@ -344,12 +433,14 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     // output the PI's leaf stories in a grid and then call routine to bucket them by STATE
     // ----------------------------------------------------
-    _processPiLeafStories:function (store, records) {
+    _processPiLeafStories:function (theStore, theRecords) {
+
+        console.log("Enter _processPiLeafStories()");
 
         // spit out all leaf stories into a grid
         var snapshotGrid = Ext.create('Rally.ui.grid.Grid', {
             title: 'Snapshots',
-            store: store,
+            store: theStore,
             columnCfgs: [
                 {
                     text:'ObjectID',
@@ -394,12 +485,17 @@ Ext.define('CustomApp', {
         gridHolder.add(snapshotGrid);
 
 
-        // time to start processing the PI's leaf stories by their "kanban" state
-        this._processAllPiStoriesByState(records);
+        // time to start processing the PI's leaf stories by their state
+        this._processAllPiStoriesByState(theRecords);
 
         //this._logStateMetaDataArray(this.gStateMetaDataArray);
 
         this._chartPiByState(this.gStateMetaDataArray);
+
+        // save PI info into preferences
+        this._updateAppPrefs();
+
+        console.log("Exit _processPiLeafStories()");
 
     }, // end _processPiLeafStories
 
@@ -413,6 +509,7 @@ Ext.define('CustomApp', {
         this._resetStateMetaDataArray();
 
         var nbrStories = theStoryRecords.length;
+        console.log("# PI Leaf Stories: " + nbrStories);
 
         // loop through each of the PI's stories
         for (var storyNdx = 0; storyNdx < nbrStories; storyNdx++) {
