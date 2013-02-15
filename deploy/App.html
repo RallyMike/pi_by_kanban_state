@@ -47,11 +47,12 @@ Ext.define('CustomApp', {
     gKanbanStateFieldName: "MikeBan",
     //gKanbanStateFieldName: "KanbanState",
 
-    gStateMetaDataArray: [], // array to hold the PI's leaf story meta data per state
+    gStateMetaDataArray: [],            // array to hold the PI's leaf story meta data per state
 
-    gPiObjectID: undefined,     // PI object ID to breakdown upon initial load
-    gPiFormattedID: undefined,  // PI formatted ID
-    gPiName: undefined,         // PI name
+    gPiObjectID: undefined,             // PI object ID to breakdown upon initial load
+    gPiFormattedID: undefined,          // PI formatted ID
+    gPiName: undefined,                 // PI name
+    gPiPlanEstTotal: undefined,    // PI plan estimate total
 
     // --- end global variables ---
 
@@ -172,10 +173,11 @@ Ext.define('CustomApp', {
         var len = this.gStateMetaDataArray.length
         for (var x = 0; x < len; x++){
             var aState = this.gStateMetaDataArray[x];
-            aState.itsStoryCount = 0;
-            aState.itsStoryPlanEstimate = 0;
-            aState.itsAggregateStoryCount = 0;
-            aState.itsAggregateStoryPlanEstimate = 0;
+            aState.itsCount = 0;
+            aState.itsPlanEst = 0;
+            aState.itsAggCount = 0;
+            aState.itsAggPlanEst = 0;
+            aState.itsPctComp = "n/a";
         }
 
     }, // end _resetStateMetaDataArray
@@ -248,10 +250,10 @@ Ext.define('CustomApp', {
             // populate initial entry for this state
             var storyStateMetaData = new Object();
             storyStateMetaData.itsName = aValue;
-            storyStateMetaData.itsStoryCount = 0;
-            storyStateMetaData.itsStoryPlanEstimate = 0;
-            storyStateMetaData.itsAggregateStoryCount = 0;
-            storyStateMetaData.itsAggregateStoryPlanEstimate = 0;
+            storyStateMetaData.itsCount = 0;
+            storyStateMetaData.itsPlanEst = 0;
+            storyStateMetaData.itsAggCount = 0;
+            storyStateMetaData.itsAggPlanEst = 0;
 
             // add it to the state array
             this.gStateMetaDataArray.push(storyStateMetaData);
@@ -316,7 +318,7 @@ Ext.define('CustomApp', {
 
         var store = Ext.create('Rally.data.WsapiDataStore', {
             model: 'PortfolioItem',
-            fetch: ["ObjectID", "Name", "ActualStartDate", "PlannedEndDate"],
+            fetch: ["ObjectID", "Name", "ActualStartDate", "PlannedEndDate", "LeafStoryCount", "LeafStoryPlanEstimateTotal"],
             // scope globally
             context: {
                 project:null
@@ -349,7 +351,7 @@ Ext.define('CustomApp', {
     // ----------------------------------------------------
     _getLeafStoriesInPi:function (thePiRecords) {
 
-        // ----- BEGIN: grab the PI's date fields
+        // ----- BEGIN: grab the PI's fields
         var nbrPiRecords;
 
         nbrPiRecords = thePiRecords.length;
@@ -361,19 +363,21 @@ Ext.define('CustomApp', {
             return;
         }
 
+        this.gPiPlanEstTotal = thePiRecords[0].get("LeafStoryPlanEstimateTotal");
+
         var piActualStartDate = thePiRecords[0].get("ActualStartDate");
         var piPlannedEndDate = thePiRecords[0].get("PlannedEndDate");
 
         var piTextBox = this.down('#piTextBox');
-        piTextBox.update('<font size="4"><br><b>Portfolio Item: </b>' + this.gPiFormattedID + " - " + this.gPiName + "</font>");
+        piTextBox.update('<br><font size="3"><b>Portfolio Item: </b>' + this.gPiFormattedID + " - " + this.gPiName + "</font>");
 
         var piActualStartDateTextBox = this.down('#piActualStartDateTextBox');
-        piActualStartDateTextBox.update('<font size="3"><br><b>Actual Start Date: </b>' + piActualStartDate + "</font>");
+        piActualStartDateTextBox.update('<font size="2"><b>Actual Start Date: </b>' + piActualStartDate + "</font>");
 
         var piPlannedEndDateTextBox = this.down('#piPlannedEndDateTextBox');
-        piPlannedEndDateTextBox.update('<font size="3"><br><b>Planned End Date: </b>' + piPlannedEndDate + "</font>");
+        piPlannedEndDateTextBox.update('<font size="2"><b>Planned End Date: </b>' + piPlannedEndDate + "</font>");
 
-        // ----- END: grab the PI's date fields
+        // ----- END: grab the PI's fields
 
 
         // ----- BEGIN: query the LBAPI for all of the PI's leaf stories
@@ -415,12 +419,6 @@ Ext.define('CustomApp', {
             rawFind: query,
             hydrate: ["ScheduleState", "c_" + this.gKanbanStateFieldName],
             autoLoad: true,
-
-//            listeners: {
-//                scope: this,
-//                load: this._processPiLeafStories
-//            }
-
             listeners: {
                 load:function (store, data, success) {
 
@@ -431,9 +429,6 @@ Ext.define('CustomApp', {
                 scope: this
             }
 
-
-
-
         });
 
         // ----- END: query the LBAPI for all of the PI's leaf stories
@@ -443,7 +438,8 @@ Ext.define('CustomApp', {
 
 
     // ----------------------------------------------------
-    // output the PI's leaf stories in a grid and then call routine to bucket them by STATE
+    // output the PI's leaf stories in a grid and then call
+    // routine to bucket them by STATE
     // ----------------------------------------------------
     _processPiLeafStories:function (theStore, theRecords) {
 
@@ -500,6 +496,10 @@ Ext.define('CustomApp', {
         // time to start processing the PI's leaf stories by their state
         this._processAllPiStoriesByState(theRecords);
 
+        // calc each STATE's % of completion
+        // ex. 100% stories estimated, 80% developed, 50% completed, 40% accepted
+        this._calcPiByStateCompletion(this.gStateMetaDataArray);
+
         //this._logStateMetaDataArray(this.gStateMetaDataArray);
 
         this._chartPiByState(this.gStateMetaDataArray);
@@ -548,62 +548,6 @@ Ext.define('CustomApp', {
     }, // end _processPiStoriesByState
 
 
-    // chart out the PI's bucketed by kanban state
-    _chartPiByState:function (theStoryStateMetaDataArray) {
-
-        // define a custom  model
-        var aModel = Ext.define('CustomStateModel', {
-            extend: 'Ext.data.Model',
-            fields: [
-                {name:'itsName', type:'string'},
-                {name:'itsStoryCount', type:'int'},
-                {name:'itsStoryPlanEstimate', type:'int'},
-                {name:'itsAggregateStoryCount', type:'int'},
-                {name:'itsAggregateStoryPlanEstimate', type:'int'}            ]
-        });
-
-
-        // populate a store built around the custom model
-        var aStore = Ext.create('Ext.data.Store', {
-            storeId: 'piByStateStore',
-            model: aModel,
-            data: theStoryStateMetaDataArray
-        });
-
-
-        // define a rally grid to output the store's data in
-        var aGrid = Ext.create('Rally.ui.grid.Grid', {
-            itemId: 'piByStateGrid',
-            store: aStore,
-            width: 470,
-            columnCfgs: [
-                {
-                    text:'State Name', dataIndex:'itsName', flex:3
-                },
-                {
-                    text:'Story Count Total', dataIndex:'itsStoryCount', flex:1
-                },
-                {
-                    text:'Plan Estimate Total', dataIndex:'itsStoryPlanEstimate', flex:1
-                },
-                {
-                    text:'Aggregate Story Count Total', dataIndex:'itsAggregateStoryCount', flex:1
-                },
-                {
-                    text:'Aggregate Plan Estimate Total', dataIndex:'itsAggregateStoryPlanEstimate', flex:1
-                }
-            ] // end columnCfgs
-        });
-
-
-        // render the PI by State grid
-        var aPiByStateGridContainer = this.down('#piByStateGridContainer');
-        aPiByStateGridContainer.removeAll(true);
-        aPiByStateGridContainer.add(aGrid);
-
-    }, // end _chartPiByState
-
-
     // ----------------------------------------------------
     // Process the supplied leaf story.  Its meta data
     // will be added to the appropriate story states.
@@ -632,28 +576,28 @@ Ext.define('CustomApp', {
             //console.log("aStateMetaDataEntry.itsName    : " + aStateMetaDataEntry.itsName);
 
             // the supplied story is either in this state or beyond it
-            aStateMetaDataEntry.itsAggregateStoryCount += 1;
-            aStateMetaDataEntry.itsAggregateStoryPlanEstimate += theStoryRecord.get("PlanEstimate") || 0;
+            aStateMetaDataEntry.itsAggCount += 1;
+            aStateMetaDataEntry.itsAggPlanEst += theStoryRecord.get("PlanEstimate") || 0;
 
             // check if the supplied story is in this state
             if (aStateMetaDataEntry.itsName === aStoryState) {
-                aStateMetaDataEntry.itsStoryCount += 1;
-                aStateMetaDataEntry.itsStoryPlanEstimate += theStoryRecord.get("PlanEstimate") || 0;
+                aStateMetaDataEntry.itsCount += 1;
+                aStateMetaDataEntry.itsPlanEst += theStoryRecord.get("PlanEstimate") || 0;
                 return 0;
             }
 
         } // end loop through each story meta data state
 
-        // state not found --- we encountered a state no longer used
+        // state not found --- we encountered a state no longer used/valid
 
         // populate initial entry for this "old" state.  Although the state may no longer
         // be valid, there could be story's still referencing it that have yet to be updated.
         var anOldState = new Object();
         anOldState.itsName = aStoryState;
-        anOldState.itsStoryCount = 1;
-        anOldState.itsStoryPlanEstimate = theStoryRecord.get("PlanEstimate") || 0;
-        anOldState.itsAggregateStoryCount = 1;
-        anOldState.itsAggregateStoryPlanEstimate = theStoryRecord.get("PlanEstimate") || 0;
+        anOldState.itsCount = 1;
+        anOldState.itsPlanEst = theStoryRecord.get("PlanEstimate") || 0;
+        anOldState.itsAggCount = 1;
+        anOldState.itsAggPlanEst = theStoryRecord.get("PlanEstimate") || 0;
 
         // add it to the state array
         theStoryStateMetaDataArray.push(anOldState);
@@ -663,6 +607,105 @@ Ext.define('CustomApp', {
         return 0;
 
     }, // end _processPiStoryByState
+
+
+    // ----------------------------------------------------
+    // Calc each STATE's % of completion.  For example:
+    // 100% estimated
+    // 80%  developed
+    // 50%  completed
+    // 40%  accepted
+    // ----------------------------------------------------
+    _calcPiByStateCompletion:function (theStoryStateMetaDataArray) {
+
+        console.log("Enter _calcPiByStateCompletion()");
+
+        var nbrStates = theStoryStateMetaDataArray.length;
+        console.log("len: " + nbrStates);
+
+        for (var x = 0; x < nbrStates; x++) {
+
+            var anEntry = theStoryStateMetaDataArray[x];
+
+            if (anEntry !== null) {
+
+                console.log("anEntry.itsName: " + anEntry.itsName);
+                console.log("anEntry.itsAggPlanEst: " + anEntry.itsAggPlanEst);
+                console.log("this.gPiPlanEstTotal: " + this.gPiPlanEstTotal);
+
+                anEntry.itsPctComp =
+                                anEntry.itsAggPlanEst /
+                                this.gPiPlanEstTotal *
+                                100;
+
+                console.log("anEntry.itsPctComp: " + anEntry.itsPctComp);
+            }
+
+        } // end loop through all entries in the story state meta data array
+
+        console.log("Exit _calcPiByStateCompletion()");
+    },
+
+
+    // chart out the PI's bucketed by kanban state
+    _chartPiByState:function (theStoryStateMetaDataArray) {
+
+        // define a custom  model
+        var aModel = Ext.define('CustomStateModel', {
+            extend: 'Ext.data.Model',
+            fields: [
+                {name:'itsName', type:'string'},
+                {name:'itsCount', type:'int'},
+                {name:'itsPlanEst', type:'int'},
+                {name:'itsAggCount', type:'int'},
+                {name:'itsAggPlanEst', type:'int'},
+                {name:'itsPctComp', type:'int'}
+            ]
+        });
+
+
+        // populate a store built around the custom model
+        var aStore = Ext.create('Ext.data.Store', {
+            storeId: 'piByStateStore',
+            model: aModel,
+            data: theStoryStateMetaDataArray
+        });
+
+
+        // define a rally grid to output the store's data in
+        var aGrid = Ext.create('Rally.ui.grid.Grid', {
+            itemId: 'piByStateGrid',
+            store: aStore,
+            width: 470,
+            columnCfgs: [
+                {
+                    text:'State Name', dataIndex:'itsName', flex:3
+                },
+                {
+                    text:'Story Count Total', dataIndex:'itsCount', flex:1
+                },
+                {
+                    text:'Plan Estimate Total', dataIndex:'itsPlanEst', flex:1
+                },
+                {
+                    text:'Aggregate Story Count Total', dataIndex:'itsAggCount', flex:1
+                },
+                {
+                    text:'Aggregate Plan Estimate Total', dataIndex:'itsAggPlanEst', flex:1
+                },
+                {
+                    text:'% Complete', dataIndex:'itsPctComp', flex:1
+                }
+            ] // end columnCfgs
+        });
+
+
+        // render the PI by State grid
+        var aPiByStateGridContainer = this.down('#piByStateGridContainer');
+        aPiByStateGridContainer.removeAll(true);
+        aPiByStateGridContainer.add(aGrid);
+
+    }, // end _chartPiByState
 
 
     _logStateMetaDataArray:function (theStoryStateMetaDataArray) {
@@ -678,11 +721,12 @@ Ext.define('CustomApp', {
 
             if (anEntry !== null) {
                 console.log("itsName: " + anEntry.itsName);
-                console.log("itsStoryCount: " + anEntry.itsStoryCount);
-                console.log("itsStoryPlanEstimate: " + anEntry.itsStoryPlanEstimate);
-                console.log("itsAggregateStoryPlanEstimate: " + anEntry.itsAggregateStoryCount);
-                console.log("itsAggregateStoryPlanEstimate: " + anEntry.itsAggregateStoryPlanEstimate);            }
-
+                console.log("itsCount: " + anEntry.itsCount);
+                console.log("itsPlanEst: " + anEntry.itsPlanEst);
+                console.log("itsAggCount: " + anEntry.itsAggCount);
+                console.log("itsAggPlanEst: " + anEntry.itsAggPlanEst);
+                console.log("itsPctComp: " + anEntry.itsPctComp);
+            }
         } // end loop through all entries in the story state meta data array
 
     } // end _logStateMetaDataArray
