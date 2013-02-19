@@ -76,7 +76,7 @@ Ext.define('CustomApp', {
         // process this App's preferences
         // STUBBING OUT FOR NOW...the LBAPI query is not working
         // for the initial PI upon App load/refresh
-        //this._processAppPrefs();
+        this._processAppPrefs();
 
 
         // we need to determine the order of states via the WSAPI model
@@ -97,7 +97,8 @@ Ext.define('CustomApp', {
         console.log(this.settings);
 
         // grab PI info to use upon initial load (might be undefined)
-        this.gPiObjectID = this.getSetting("piObjectID");
+        //this.gPiObjectID = this.getSetting("piObjectID");
+        this.gPiObjectID = parseInt(this.getSetting("piObjectID"), 10);
         this.gPiFormattedID = this.getSetting("piFormattedID");
         this.gPiName = this.getSetting("piName");
 
