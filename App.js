@@ -32,8 +32,10 @@ Ext.define('CustomApp', {
 
     // --- App global variables ---
 
-    gKanbanStateFieldName: "MikeBan",
-    //gKanbanStateFieldName: "KanbanState",
+    gKanbanStateFieldName: "KanbanState",   // field to break PI down by State
+    // //gKanbanStateFieldName: "MikeBan",       // field to break PI down by State
+
+    gShowPiLeafStoryGrid: false,        // show/hide PI leaf stories grid
 
     gStateMetaDataArray: [],            // array to hold the PI's leaf story meta data per state
 
@@ -53,8 +55,9 @@ Ext.define('CustomApp', {
             artifactTypes:['PortfolioItem'],
             autoShow:true,
             title:'Select Portfolio Item',
-            limit:20,
-            height:500,
+            //limit:20,
+            //height:400,
+            width:380,
             listeners:{
                 artifactChosen:function (selectedRecord) {
 
@@ -74,8 +77,6 @@ Ext.define('CustomApp', {
         // main function
 
         // process this App's preferences
-        // STUBBING OUT FOR NOW...the LBAPI query is not working
-        // for the initial PI upon App load/refresh
         this._processAppPrefs();
 
 
@@ -201,7 +202,8 @@ Ext.define('CustomApp', {
                 appScope._addAppControls();
 
                 // check if a PI is already set in preferences
-                if (appScope.gPiObjectID !== null && appScope.gPiObjectID !== undefined){
+                //if (appScope.gPiObjectID !== null && appScope.gPiObjectID !== undefined){
+                if (appScope.gPiObjectID !== null && appScope.gPiObjectID > 0){
                     console.log("Preferences contain a PI to use upon load");
 
                     // start w/ PI stored in preferences
@@ -225,6 +227,13 @@ Ext.define('CustomApp', {
     _populateStates:function (theStoryModel){
 
         var stateField = theStoryModel.getField(this.gKanbanStateFieldName);
+
+        // ensure the stateField is valid
+        if (!(  (typeof stateField === "object") &&
+            (stateField.hasOwnProperty("allowedValues")))) {
+            console.log("Invalid stateField: " + stateField);
+            return;
+        }
 
         nbrAllowedValues = stateField.allowedValues.length;
         console.log("nbrAllowedValues: " + nbrAllowedValues);
@@ -476,10 +485,13 @@ Ext.define('CustomApp', {
             //height:400
         });
 
-        // render the grid of all of the PI's leaf stories
-        var gridHolder = this.down('#piLeafStoryGridContainer');
-        gridHolder.removeAll(true);
-        gridHolder.add(snapshotGrid);
+        // check if set to show the grid containing the PI's leaf stories
+        if (this.gShowPiLeafStoryGrid === true){
+            // render the grid of all of the PI's leaf stories
+            var gridHolder = this.down('#piLeafStoryGridContainer');
+            gridHolder.removeAll(true);
+            gridHolder.add(snapshotGrid);
+        }
 
 
         // time to start processing the PI's leaf stories by their state
